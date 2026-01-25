@@ -1,28 +1,22 @@
-const axios = require("axios");
+const { db } = require("../database/db.js");
 
-async function calcularValorReal(items) {
-    if (!items || items.length === 0) return 0;
+function calcularValorRealComDB(itens) {
+  let totalValue = 0;
 
-    const uniqueItems = [...new Set(items.map(item => `${item.Type}@${item.Quality || 0}`))];
-    const pricesUrl = `https://www.albion-online-data.com/api/v2/stats/prices/${uniqueItems.join(',')}?locations=Caerleon,Bridgewatch,Thetford,Lymhurst,FortSterling,Martlock`;
+  for (const item of itens) {
+    if (!item?.Type) continue;
 
-    const res = await axios.get(pricesUrl).catch(() => null);
-    if (!res?.data) return 0;
+    const itemId = item.Type; // ex: 'T8_HEAD_PLATE_SET1' (confirme se é item.Type ou outro campo)
+    const quantity = item.Count || item.quantity || 1;
+    const quality = item.Quality || 1; // se tiver qualidade, mas DB tem só quality=1 por enquanto
 
-    const priceMap = new Map();
-    res.data.forEach(p => {
-        const key = `${p.item_id}@${p.quality}`;
-        // Prioriza sell_price_avg, fallback para sell_price_min se avg for 0 ou undefined
-        priceMap.set(key, p.sell_price_avg > 0 ? p.sell_price_avg : (p.sell_price_min || 0));
-    });
+    // Por enquanto usamos quality=1; se precisar de @1/@2 etc., ajuste itemId aqui
+    const price = getAveragePriceAcrossCities(itemId);
 
-    let total = 0;
-    for (const item of items) {
-        const key = `${item.Type}@${item.Quality || 0}`;
-        const price = priceMap.get(key) || 0;
-        total += price * (item.Count || 1);
-    }
-    return total;
+    totalValue += price * quantity;
+  }
+
+  return totalValue;
 }
 
-module.exports = { calcularValorReal };
+module.exports = { calcularValorRealComDB };
