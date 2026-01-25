@@ -4,20 +4,6 @@ const path = require('path');
 
 const db = new Database(path.join(__dirname, '../database.db'));
 
-// Tabela prices (já criada anteriormente)
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS prices (
-    item_id TEXT,
-    city TEXT,
-    sell_min INTEGER DEFAULT 0,
-    sell_avg INTEGER DEFAULT 0,
-    sell_max INTEGER DEFAULT 0,
-    buy_min INTEGER DEFAULT 0,
-    updated_at TEXT,
-    PRIMARY KEY (item_id, city)
-  )
-`).run();
-
 const cities = ['Caerleon', 'Thetford', 'Martlock', 'Bridgewatch', 'Lymhurst', 'Fort Sterling'];
 const citiesStr = cities.join(',');
 
