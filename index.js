@@ -19,6 +19,7 @@ const interactionHandler = require("./interactions/index.js");
 
 // Importar services
 const killfeedService = require("./services/killfeedService.js");
+const { updatePrices } = require('./services/priceUpdater');
 
 // Registrar comandos globalmente
 const rest = new REST({ version: "10" }).setToken(config.token);
@@ -46,10 +47,11 @@ client.once("clientReady", () => {
         setInterval(() => verificarMembros(guild), 60 * 60 * 1000);
     });
 
-    // Atualização de preços a cada 6h (de craftingService)
-    const { updateItemPrices } = require("./services/craftingService.js");
-    const CACHE_DURATION = 6 * 60 * 60 * 1000;
-    setInterval(updateItemPrices, CACHE_DURATION);
+    // Atualização de preços a cada 6h (de Itens)
+    //const { updateItemPrices } = require("./services/craftingService.js");
+    //const CACHE_DURATION = 6 * 60 * 60 * 1000;
+    //setInterval(updateItemPrices, CACHE_DURATION);
+	setInterval(updatePrices, 12 * 60 * 60 * 1000); // 12 horas
 
     // Iniciar polling do killfeed
     killfeedService.startPolling(client);

@@ -85,6 +85,20 @@ db.prepare(`
   )
 `).run();
 
+// Cria tabela prices se não existir (separada dos itens)
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS prices (
+    item_id TEXT,
+    city TEXT,
+    sell_min INTEGER DEFAULT 0,
+    sell_avg INTEGER DEFAULT 0,
+    sell_max INTEGER DEFAULT 0,
+    buy_min INTEGER DEFAULT 0,
+    updated_at TEXT,
+    PRIMARY KEY (item_id, city)
+  )
+`).run();
+
 // Nova tabela para specs de crafting do usuário (vinculado a discord_id e player_id)
 db.prepare(`
   CREATE TABLE IF NOT EXISTS user_specs (
