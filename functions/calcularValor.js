@@ -6,20 +6,42 @@ function calcularValorRealComDB(itens) {
   for (const item of itens) {
     if (!item?.Type) continue;
 
-    const itemId = item.Type; // ex: 'T8_HEAD_PLATE_SET1' (confirme se é item.Type ou outro campo)
+    let itemId = item.Type; // ex: 'T5_2H_IRONCLADEDSTAFF' ou já com @1
     const quantity = item.Count || item.quantity || 1;
-    const quality = item.Quality || 1; // se tiver qualidade, mas DB tem só quality=1 por enquanto
+    const quality = item.Quality || 1;
 
-    // Por enquanto usamos quality=1; se precisar de @1/@2 etc., ajuste itemId aqui
+    // Ajusta itemId para incluir @ se quality >1 e ainda não tiver
+    if (quality > 1 && !itemId.includes('@')) {
+      const enchantLevel = quality - 1; // quality 2 = @1, 3 = @2, 4 = @3
+      itemId += `@${enchantLevel}`;
+    }
+
+    // Ignora itens non-tradable, quest, tokens, tesouros
+    if (itemId.includes('NONTRADABLE') ||
+        itemId.includes('QUESTITEM') ||
+        itemId.includes('TOKEN') ||
+        itemId.includes('TREASURE')) {
+      continue;
+    }
+
     const price = getAveragePriceAcrossCities(itemId);
 
-    totalValue += price * quantity;
+    // Se não encontrou com @, fallback para base (sem @)
+    let finalPrice = price;
+    if (finalPrice === 0 && itemId.includes('@')) {
+      const baseId = itemId.split('@')[0];
+      finalPrice = getAveragePriceAcrossCities(baseId);
+      if (finalPrice > 0) {
+        console.log(`Fallback usado: preço base para ${itemId} → ${finalPrice}`);
+      }
+    }
+
+    totalValue += finalPrice * quantity;
   }
 
   return totalValue;
 }
 
-// Função auxiliar: retorna a média de sell_avg de TODAS as cidades para um item_id
 function getAveragePriceAcrossCities(itemId) {
   try {
     const rows = db.prepare(`
@@ -34,11 +56,11 @@ function getAveragePriceAcrossCities(itemId) {
     }
 
     const total = rows.reduce((sum, row) => sum + row.sell_avg, 0);
-    return Math.round(total / rows.length); // média arredondada
+    return Math.round(total / rows.length);
   } catch (err) {
     console.error(`Erro ao consultar média de preços para ${itemId}:`, err.message);
     return 0;
   }
 }
 
-module.exports = { calcularValorRealComDB, getAveragePriceAcrossCities };
+module.exports = { calcularValorRealComDB };
