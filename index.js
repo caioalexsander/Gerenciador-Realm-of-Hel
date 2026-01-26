@@ -11,10 +11,10 @@ const path = require("path");
 function loadToken() {
   let envVars = {};
 
-  // 1. Prioridade máxima: env.txt (arquivo que você adicionou no deploy)
-  const envPath = path.join(__dirname, "env.txt");
+  // 1. Prioridade máxima: .env (arquivo que você adicionou no deploy)
+  const envPath = path.join(__dirname, ".env");
   if (fs.existsSync(envPath)) {
-    console.log("env.txt encontrado e sendo carregado.");
+    console.log(".env encontrado e sendo carregado.");
     const envContent = fs.readFileSync(envPath, "utf8");
     envContent.split("\n").forEach((line) => {
       const trimmed = line.trim();
@@ -27,7 +27,7 @@ function loadToken() {
       }
     });
   } else {
-    console.warn("env.txt não encontrado na raiz do projeto.");
+    console.warn(".env não encontrado na raiz do projeto.");
   }
 
   // 2. Fallback: config.json
@@ -50,14 +50,14 @@ function loadToken() {
   if (!token.trim()) {
     console.error(
       "ERRO: Token do Discord não encontrado!\n" +
-      "- Verifique se env.txt está na raiz do projeto e tem a linha: DISCORD_TOKEN=SEU_TOKEN_REAL\n" +
+      "- Verifique se .env está na raiz do projeto e tem a linha: DISCORD_TOKEN=SEU_TOKEN_REAL\n" +
       "- Ou preencha \"token\": \"SEU_TOKEN_AQUI\" no config.json (apenas local)\n" +
       "- Bot encerrando..."
     );
     process.exit(1);
   }
 
-  console.log("Token carregado com sucesso (de env.txt, config.json ou env).");
+  console.log("Token carregado com sucesso (de .env, config.json ou env).");
   return token;
 }
 
