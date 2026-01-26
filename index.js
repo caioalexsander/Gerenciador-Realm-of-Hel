@@ -7,33 +7,61 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-// Carrega config.json de forma segura (com fallback se não existir ou inválido)
-let config = {};
-try {
-  const configPath = path.join(__dirname, "config.json");
-  if (fs.existsSync(configPath)) {
-    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    console.log("config.json carregado com sucesso.");
+// Função para carregar o token de forma segura
+function loadToken() {
+  let envVars = {};
+
+  // 1. Prioridade máxima: env.txt (arquivo que você adicionou no deploy)
+  const envPath = path.join(__dirname, "env.txt");
+  if (fs.existsSync(envPath)) {
+    console.log("env.txt encontrado e sendo carregado.");
+    const envContent = fs.readFileSync(envPath, "utf8");
+    envContent.split("\n").forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith("#")) {
+        const [key, ...valueParts] = trimmed.split("=");
+        const value = valueParts.join("=").trim();
+        if (key && value) {
+          envVars[key.trim()] = value;
+        }
+      }
+    });
   } else {
-    console.warn("config.json não encontrado. Usando apenas variáveis de ambiente.");
+    console.warn("env.txt não encontrado na raiz do projeto.");
   }
-} catch (err) {
-  console.error("Erro ao carregar config.json:", err.message);
-  config = {}; // Continua sem crashar
+
+  // 2. Fallback: config.json
+  const configPath = path.join(__dirname, "config.json");
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      console.log("config.json carregado com sucesso.");
+    } catch (err) {
+      console.error("Erro ao ler config.json:", err.message);
+    }
+  } else {
+    console.warn("config.json não encontrado.");
+  }
+
+  // 3. Prioridade final: process.env (se Discloud carregar de algum jeito)
+  const token = envVars.DISCORD_TOKEN || config.token || process.env.DISCORD_TOKEN || "";
+
+  if (!token.trim()) {
+    console.error(
+      "ERRO: Token do Discord não encontrado!\n" +
+      "- Verifique se env.txt está na raiz do projeto e tem a linha: DISCORD_TOKEN=SEU_TOKEN_REAL\n" +
+      "- Ou preencha \"token\": \"SEU_TOKEN_AQUI\" no config.json (apenas local)\n" +
+      "- Bot encerrando..."
+    );
+    process.exit(1);
+  }
+
+  console.log("Token carregado com sucesso (de env.txt, config.json ou env).");
+  return token;
 }
 
-// Prioriza variável de ambiente (Discloud) > config.json
-const token = process.env.DISCORD_TOKEN || config.token || "";
-
-if (!token.trim()) {
-  console.error(
-    "ERRO: Token do Discord não definido!\n" +
-    "1. Defina a variável de ambiente DISCORD_TOKEN no painel da Discloud (recomendado).\n" +
-    "2. Ou preencha \"token\": \"SEU_TOKEN_AQUI\" no config.json (apenas para testes locais – NÃO commit!)\n" +
-    "Bot encerrando..."
-  );
-  process.exit(1);
-}
+const token = loadToken();
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -53,10 +81,9 @@ const { updatePrices } = require("./services/priceUpdater");
 const rest = new REST({ version: "10" }).setToken(token);
 (async () => {
   try {
-    await rest.put(
-      Routes.applicationCommands(config.clientId),
-      { body: commands.map(c => c.toJSON()) }
-    );
+    await rest.put(Routes.applicationCommands(config.clientId), {
+      body: commands.map((c) => c.toJSON()),
+    });
     console.log("Comandos registrados com sucesso!");
   } catch (error) {
     console.error("Erro ao registrar comandos:", error);
@@ -72,7 +99,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// 🔥 CAPTURA DE ERROS GLOBAIS (já estava, mantido e melhorado)
+// 🔥 CAPTURA DE ERROS GLOBAIS
 process.on("unhandledRejection", (reason) => {
   console.error("❌ Unhandled Rejection:", reason);
 });
@@ -84,38 +111,37 @@ process.on("uncaughtException", (error) => {
 client.once("clientReady", async () => {
   console.log("🤖 Bot online!");
 
-  // Verificação de membros em todos os guilds
-  client.guilds.cache.forEach(guild => {
+  client.guilds.cache.forEach((guild) => {
     const { verificarMembros } = require("./functions/verificarMembros.js");
     setInterval(() => verificarMembros(guild), 60 * 60 * 1000);
   });
 
-  // Atualização de preços a cada 12h
   try {
-    await updatePrices(); // Executa uma vez na inicialização (opcional, mas útil)
+    await updatePrices();
     console.log("Atualização inicial de preços concluída.");
   } catch (err) {
     console.error("Erro na atualização inicial de preços:", err);
   }
   setInterval(updatePrices, 12 * 60 * 60 * 1000);
 
-  // Heartbeat (já estava)
   setInterval(() => {
     console.log("💓 Bot vivo:", new Date().toISOString());
   }, 30000);
 
-  // Monitoramento de memória (já estava, mantido)
   setInterval(() => {
     const used = process.memoryUsage();
-    console.log(`Memória: RSS ${Math.round(used.rss / 1024 / 1024)}MB | Heap ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
+    console.log(
+      `Memória: RSS ${Math.round(used.rss / 1024 / 1024)}MB | Heap ${Math.round(
+        used.heapUsed / 1024 / 1024
+      )}MB`
+    );
   }, 60000);
 
-  // Inicia o killfeed
   killfeedService.startPolling(client);
 });
 
-// Login com token seguro
-client.login(token).catch(err => {
+// Login com o token carregado
+client.login(token).catch((err) => {
   console.error("Falha ao logar no Discord:", err.message);
   process.exit(1);
 });
