@@ -17,50 +17,52 @@ function calcularValorRealComDB(itens) {
     }
 
     // Ignora non-tradable/quest/etc.
-    if (itemId.includes('NONTRADABLE') ||
-        itemId.includes('QUESTITEM') ||
-        itemId.includes('TOKEN') ||
-        itemId.includes('TREASURE')) {
+    if (
+      itemId.includes('NONTRADABLE') ||
+      itemId.includes('QUESTITEM') ||
+      itemId.includes('TOKEN') ||
+      itemId.includes('TREASURE')
+    ) {
       continue;
     }
 
     let price = getAveragePriceAcrossCities(itemId);
 
     // Se não encontrou, tenta fallback para base e adiciona item na tabela itens se não existir
-    // Dentro do if (price === 0 && basePrice === 0) {
-if (price === 0) {
-  const baseId = itemId.split('@')[0];
-  const basePrice = getAveragePriceAcrossCities(baseId);
+    if (price === 0) {
+      const baseId = itemId.split('@')[0];
+      const basePrice = getAveragePriceAcrossCities(baseId);
 
-  if (basePrice > 0) {
-    price = basePrice;
-    console.log(`Fallback usado: preço base para ${itemId} → ${price}`);
-  } else {
-    // Novo: Adiciona item na tabela itens se não existir (com try-catch!)
-    try {
-	  const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
-	  if (!exists) {
-		db.prepare(`
-		  INSERT OR IGNORE INTO itens 
-		  (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
-		  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
-		`).run(
-		  itemId,
-		  itemId || 'Desconhecido',          // nome
-		  itemId || 'Desconhecido',          // nome_ptbr
-		  itemId || 'Unknown',               // nome_enus
-		  'Item adicionado automaticamente de kill',  // descricao_ptbr
-		  'Automatically added from kill',   // descricao_enus
-		  JSON.stringify({}),                // prices
-		  JSON.stringify({})                 // recipe
-		);
-		console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
-	  }
-	} catch (err) {
-	  console.error(`Erro ao adicionar item ${itemId} na tabela itens:`, err.message);
-	}
-  }
-}
+      if (basePrice > 0) {
+        price = basePrice;
+        console.log(`Fallback usado: preço base para ${itemId} → ${price}`);
+      } else {
+        // Adiciona item na tabela itens se não existir
+        try {
+          const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
+          if (!exists) {
+            db.prepare(`
+              INSERT OR IGNORE INTO itens 
+              (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
+            `).run(
+              itemId,
+              itemId || 'Desconhecido',               // nome
+              itemId || 'Desconhecido',               // nome_ptbr
+              itemId || 'Unknown',                    // nome_enus
+              'Item adicionado automaticamente de kill',  // descricao_ptbr
+              'Automatically added from kill',        // descricao_enus
+              JSON.stringify({}),                     // prices
+              JSON.stringify({})                      // recipe
+            );
+            console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
+          }
+        } catch (err) {
+          console.error(`Erro ao adicionar item ${itemId} na tabela itens:`, err.message, err.stack);
+          // Continua sem derrubar o bot
+        }
+      }
+    }
 
     totalValue += price * quantity;
   }
@@ -77,7 +79,6 @@ function getAveragePriceAcrossCities(itemId) {
     `).all(itemId);
 
     if (rows.length === 0) {
-      // Não loga warning aqui para evitar spam; só loga quando necessário no caller
       return 0;
     }
 
