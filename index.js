@@ -7,16 +7,24 @@ const {
 
 const fs = require("fs");
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
-// O token pode vir do config ou de variável de ambiente (mais seguro)
-const token = process.env.DISCORD_TOKEN || config.token;
+
+// Token e Client ID vindos do ambiente
+const token = process.env.DISCORD_TOKEN;
+const clientId = process.env.CLIENT_ID;
+
 if (!token) {
-  console.error('ERRO: Token do Discord não encontrado! Verifique config.json ou variável de ambiente DISCORD_TOKEN.');
+  console.error("ERRO: DISCORD_TOKEN não definido!");
   process.exit(1);
 }
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
+
+if (!clientId) {
+  console.error("ERRO: CLIENT_ID não definido!");
+  process.exit(1);
+}
 
 // Importar comandos
 const commands = require("./commands/index.js");
@@ -84,4 +92,4 @@ client.once("clientReady", () => {
   killfeedService.startPolling(client);
 });
 
-client.login(config.token);
+client.login(token);
