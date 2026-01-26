@@ -6,17 +6,17 @@ function calcularValorRealComDB(itens) {
   for (const item of itens) {
     if (!item?.Type) continue;
 
-    let itemId = item.Type; // ex: 'T5_2H_IRONCLADEDSTAFF' ou já com @1
+    let itemId = item.Type;
     const quantity = item.Count || item.quantity || 1;
     const quality = item.Quality || 1;
 
-    // Ajusta itemId para incluir @ se quality >1 e ainda não tiver
+    // Ajusta para @ se quality >1
     if (quality > 1 && !itemId.includes('@')) {
-      const enchantLevel = quality - 1; // quality 2 = @1, 3 = @2, 4 = @3
+      const enchantLevel = quality - 1;
       itemId += `@${enchantLevel}`;
     }
 
-    // Ignora itens non-tradable, quest, tokens, tesouros
+    // Ignora non-tradable/quest/etc.
     if (itemId.includes('NONTRADABLE') ||
         itemId.includes('QUESTITEM') ||
         itemId.includes('TOKEN') ||
@@ -24,19 +24,39 @@ function calcularValorRealComDB(itens) {
       continue;
     }
 
-    const price = getAveragePriceAcrossCities(itemId);
+    let price = getAveragePriceAcrossCities(itemId);
 
-    // Se não encontrou com @, fallback para base (sem @)
-    let finalPrice = price;
-    if (finalPrice === 0 && itemId.includes('@')) {
+    // Se não encontrou, tenta fallback para base e adiciona item na tabela itens se não existir
+    if (price === 0) {
       const baseId = itemId.split('@')[0];
-      finalPrice = getAveragePriceAcrossCities(baseId);
-      if (finalPrice > 0) {
-        console.log(`Fallback usado: preço base para ${itemId} → ${finalPrice}`);
+      const basePrice = getAveragePriceAcrossCities(baseId);
+
+      if (basePrice > 0) {
+        price = basePrice;
+        console.log(`Fallback usado: preço base para ${itemId} → ${price}`);
+      } else {
+        // Novo: Adiciona o item na tabela itens se não existir (para futuro update)
+        const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
+        if (!exists) {
+          db.prepare(`
+            INSERT OR IGNORE INTO itens (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
+          `).run(
+            itemId,
+            itemId,           // nome placeholder
+            itemId,           // nome_ptbr placeholder
+            itemId,           // nome_enus placeholder
+            '',               // desc placeholder
+            '', 
+            JSON.stringify({}), 
+            JSON.stringify({}), 
+          );
+          console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
+        }
       }
     }
 
-    totalValue += finalPrice * quantity;
+    totalValue += price * quantity;
   }
 
   return totalValue;
@@ -51,14 +71,14 @@ function getAveragePriceAcrossCities(itemId) {
     `).all(itemId);
 
     if (rows.length === 0) {
-      console.warn(`Nenhum preço sell_avg encontrado para item ${itemId} em nenhuma cidade`);
+      // Não loga warning aqui para evitar spam; só loga quando necessário no caller
       return 0;
     }
 
     const total = rows.reduce((sum, row) => sum + row.sell_avg, 0);
     return Math.round(total / rows.length);
   } catch (err) {
-    console.error(`Erro ao consultar média de preços para ${itemId}:`, err.message);
+    console.error(`Erro ao consultar preço para ${itemId}:`, err.message);
     return 0;
   }
 }
