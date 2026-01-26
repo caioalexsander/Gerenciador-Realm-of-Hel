@@ -27,34 +27,41 @@ function calcularValorRealComDB(itens) {
     let price = getAveragePriceAcrossCities(itemId);
 
     // Se não encontrou, tenta fallback para base e adiciona item na tabela itens se não existir
-    if (price === 0) {
-      const baseId = itemId.split('@')[0];
-      const basePrice = getAveragePriceAcrossCities(baseId);
+    // Dentro do if (price === 0 && basePrice === 0) {
+if (price === 0) {
+  const baseId = itemId.split('@')[0];
+  const basePrice = getAveragePriceAcrossCities(baseId);
 
-      if (basePrice > 0) {
-        price = basePrice;
-        console.log(`Fallback usado: preço base para ${itemId} → ${price}`);
-      } else {
-        // Novo: Adiciona o item na tabela itens se não existir (para futuro update)
-        const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
-        if (!exists) {
-          db.prepare(`
-            INSERT OR IGNORE INTO itens (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
-          `).run(
-            itemId,
-            itemId,           // nome placeholder
-            itemId,           // nome_ptbr placeholder
-            itemId,           // nome_enus placeholder
-            '',               // desc placeholder
-            '', 
-            JSON.stringify({}), 
-            JSON.stringify({}), 
-          );
-          console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
-        }
+  if (basePrice > 0) {
+    price = basePrice;
+    console.log(`Fallback usado: preço base para ${itemId} → ${price}`);
+  } else {
+    // Novo: Adiciona item na tabela itens se não existir (com try-catch!)
+    try {
+      const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
+      if (!exists) {
+        db.prepare(`
+          INSERT OR IGNORE INTO itens 
+          (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
+        `).run(
+          itemId,
+          itemId || 'Desconhecido',  // nome seguro
+          itemId || 'Desconhecido',  // ptbr
+          itemId || 'Unknown',       // enus
+          'Item adicionado automaticamente', 
+          'Automatically added item',
+          JSON.stringify({}), 
+          JSON.stringify({}) 
+        );
+        console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
       }
+    } catch (err) {
+      console.error(`Erro ao adicionar item ${itemId} na tabela itens:`, err.message);
+      // Continua sem crashar o bot
     }
+  }
+}
 
     totalValue += price * quantity;
   }
