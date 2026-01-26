@@ -7,14 +7,29 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-// Função para carregar o token de forma segura
+// Carrega config.json de forma segura (global para usar em comandos)
+let config = {};
+try {
+  const configPath = path.join(__dirname, "config.json");
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    console.log("config.json carregado com sucesso.");
+  } else {
+    console.warn("config.json não encontrado. Usando apenas variáveis de ambiente.");
+  }
+} catch (err) {
+  console.error("Erro ao carregar config.json:", err.message);
+  config = {}; // Continua sem crashar
+}
+
+// Função para carregar o token
 function loadToken() {
   let envVars = {};
 
-  // 1. Prioridade máxima: .env (arquivo que você adicionou no deploy)
-  const envPath = path.join(__dirname, ".env");
+  // Prioridade 1: env.txt (arquivo que você adicionou)
+  const envPath = path.join(__dirname, "env.txt");
   if (fs.existsSync(envPath)) {
-    console.log(".env encontrado e sendo carregado.");
+    console.log("env.txt encontrado e sendo carregado.");
     const envContent = fs.readFileSync(envPath, "utf8");
     envContent.split("\n").forEach((line) => {
       const trimmed = line.trim();
@@ -27,37 +42,24 @@ function loadToken() {
       }
     });
   } else {
-    console.warn(".env não encontrado na raiz do projeto.");
+    console.warn("env.txt não encontrado.");
   }
 
-  // 2. Fallback: config.json
-  const configPath = path.join(__dirname, "config.json");
-  let config = {};
-  if (fs.existsSync(configPath)) {
-    try {
-      config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      console.log("config.json carregado com sucesso.");
-    } catch (err) {
-      console.error("Erro ao ler config.json:", err.message);
-    }
-  } else {
-    console.warn("config.json não encontrado.");
-  }
-
-  // 3. Prioridade final: process.env (se Discloud carregar de algum jeito)
+  // Prioridade 2: config.json
+  // Prioridade 3: process.env
   const token = envVars.DISCORD_TOKEN || config.token || process.env.DISCORD_TOKEN || "";
 
   if (!token.trim()) {
     console.error(
       "ERRO: Token do Discord não encontrado!\n" +
-      "- Verifique se .env está na raiz do projeto e tem a linha: DISCORD_TOKEN=SEU_TOKEN_REAL\n" +
-      "- Ou preencha \"token\": \"SEU_TOKEN_AQUI\" no config.json (apenas local)\n" +
-      "- Bot encerrando..."
+      "- Verifique env.txt na raiz com DISCORD_TOKEN=SEU_TOKEN\n" +
+      "- Ou preencha \"token\" no config.json (apenas local)\n" +
+      "Bot encerrando..."
     );
     process.exit(1);
   }
 
-  console.log("Token carregado com sucesso (de .env, config.json ou env).");
+  console.log("Token carregado com sucesso.");
   return token;
 }
 
@@ -77,16 +79,22 @@ const interactionHandler = require("./interactions/index.js");
 const killfeedService = require("./services/killfeedService.js");
 const { updatePrices } = require("./services/priceUpdater");
 
-// Registrar comandos
+// Registrar comandos (com verificação de config.clientId)
 const rest = new REST({ version: "10" }).setToken(token);
 (async () => {
   try {
-    await rest.put(Routes.applicationCommands(config.clientId), {
+    const clientId = config.clientId || process.env.CLIENT_ID;
+    if (!clientId) {
+      throw new Error("clientId não encontrado no config.json nem em variável de ambiente CLIENT_ID");
+    }
+
+    await rest.put(Routes.applicationCommands(clientId), {
       body: commands.map((c) => c.toJSON()),
     });
     console.log("Comandos registrados com sucesso!");
   } catch (error) {
-    console.error("Erro ao registrar comandos:", error);
+    console.error("Erro ao registrar comandos:", error.message);
+    // Continua sem encerrar o bot
   }
 })();
 
@@ -99,7 +107,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// 🔥 CAPTURA DE ERROS GLOBAIS
+// Captura de erros globais
 process.on("unhandledRejection", (reason) => {
   console.error("❌ Unhandled Rejection:", reason);
 });
@@ -116,12 +124,12 @@ client.once("clientReady", async () => {
     setInterval(() => verificarMembros(guild), 60 * 60 * 1000);
   });
 
-  try {
-    await updatePrices();
-    console.log("Atualização inicial de preços concluída.");
-  } catch (err) {
-    console.error("Erro na atualização inicial de preços:", err);
-  }
+  //try {
+    //await updatePrices();
+    //console.log("Atualização inicial de preços concluída.");
+  //} catch (err) {
+    //console.error("Erro na atualização inicial de preços:", err);
+  //}
   setInterval(updatePrices, 12 * 60 * 60 * 1000);
 
   setInterval(() => {
@@ -130,17 +138,13 @@ client.once("clientReady", async () => {
 
   setInterval(() => {
     const used = process.memoryUsage();
-    console.log(
-      `Memória: RSS ${Math.round(used.rss / 1024 / 1024)}MB | Heap ${Math.round(
-        used.heapUsed / 1024 / 1024
-      )}MB`
-    );
+    console.log(`Memória: RSS ${Math.round(used.rss / 1024 / 1024)}MB | Heap ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
   }, 60000);
 
   killfeedService.startPolling(client);
 });
 
-// Login com o token carregado
+// Login
 client.login(token).catch((err) => {
   console.error("Falha ao logar no Discord:", err.message);
   process.exit(1);
