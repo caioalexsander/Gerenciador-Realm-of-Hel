@@ -3,14 +3,75 @@ const { calcularValorRealComDB } = require("../functions/calcularValor.js");
 const { gerarImagemEquipamentos } = require("./imageService.js");
 const axios = require('axios');
 
-// Import dinâmico da p-queue (resolve ERR_REQUIRE_ESM)
-let PQueue;
-(async () => {
-  const module = await import('p-queue');
-  PQueue = module.default;
-})();
+// Função auxiliar para delay
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const queue = new PQueue({ concurrency: 5 }); // Processa 5 kills simultâneos no máx
+async function processKillsSequentially(killsToProcess, channel, cfg) {
+  for (const ev of killsToProcess) {
+    try {
+      const category = (ev.Participants?.length || 0) >= 6 ? "ZvZ" : "Open World";
+
+      const victimEquipment = ev.Victim.Equipment || {};
+      const killerEquipment = ev.Killer.Equipment || {};
+      const allVictimItems = [
+        ...Object.values(victimEquipment).filter(i => i && i.Type),
+        ...(ev.Victim.Inventory || []).filter(i => i && i.Type)
+      ];
+
+      const valor = calcularValorRealComDB(allVictimItems);
+
+      if (valor < cfg.min_value) continue;
+
+      let totalDano = 0;
+      let danoKiller = 0;
+      const participants = ev.Participants || [];
+      participants.forEach(p => {
+        const dmg = p.DamageDone || 0;
+        totalDano += dmg;
+        if (p.Id === ev.Killer?.Id) danoKiller = dmg;
+      });
+
+      const percentDano = totalDano > 0 ? ((danoKiller / totalDano) * 100).toFixed(1) : "0.0";
+
+      const imagemBuffer = await gerarImagemEquipamentos({
+        killerName: ev.Killer.Name,
+        victimName: ev.Victim.Name,
+        killerGuild: ev.Killer.GuildName,
+        victimGuild: ev.Victim.GuildName,
+        valor,
+        time: new Date(ev.TimeStamp).toLocaleString("pt-BR"),
+        victimEquipment,
+        killerEquipment,
+        inventory: ev.Victim.Inventory || []
+      });
+
+      const embed = {
+        color: 0xe3b04b,
+        author: { name: `${ev.Killer.Name} killed ${ev.Victim.Name}` },
+        description: `**Dano do Killer:** ${percentDano}%\n**Valor estimado (média todas cidades):** ${valor.toLocaleString("pt-BR")} silver`,
+        fields: [
+          { name: "Categoria", value: category, inline: true },
+          { name: "Zona", value: ev.Location?.Zone || "Desconhecida", inline: true },
+          { name: "Guild Killer", value: ev.Killer.GuildName || "Sem guild", inline: true },
+          { name: "Guild Vítima", value: ev.Victim.GuildName || "Sem guild", inline: true }
+        ],
+        timestamp: ev.TimeStamp,
+        footer: { text: `Event ID: ${ev.EventId}` },
+        image: { url: "attachment://kill.png" }
+      };
+
+      await channel.send({
+        embeds: [embed],
+        files: [{ attachment: imagemBuffer, name: "kill.png" }]
+      });
+
+      // Delay entre envios para não sobrecarregar Discord/API
+      await delay(2000); // 2 segundos
+    } catch (err) {
+      console.error(`Erro ao processar kill ${ev.EventId}:`, err.message);
+    }
+  }
+}
 
 function startPolling(client) {
   setInterval(async () => {
@@ -35,7 +96,7 @@ function startPolling(client) {
 
         const killsToProcess = [];
 
-        for (const ev of events.reverse().slice(0, 10)) { // Limita a 10 por ciclo
+        for (const ev of events.reverse().slice(0, 10)) { // Limita a 10 kills por polling para evitar sobrecarga
           const eventId = ev.EventId;
           if (eventId <= ultimoId) continue;
           if (ev.Type !== "KILL") continue;
@@ -59,78 +120,14 @@ function startPolling(client) {
             .run(ultimoId, cfg.guild_id);
         }
 
-        // Processa kills na queue
-        for (const ev of killsToProcess) {
-          queue.add(async () => {
-            try {
-              const category = (ev.Participants?.length || 0) >= 6 ? "ZvZ" : "Open World";
+        // Processa sequencialmente com delay
+        await processKillsSequentially(killsToProcess, channel, cfg);
 
-              const victimEquipment = ev.Victim.Equipment || {};
-              const killerEquipment = ev.Killer.Equipment || {};
-              const allVictimItems = [
-                ...Object.values(victimEquipment).filter(i => i && i.Type),
-                ...(ev.Victim.Inventory || []).filter(i => i && i.Type)
-              ];
-
-              const valor = calcularValorRealComDB(allVictimItems);
-
-              if (valor < cfg.min_value) return;
-
-              let totalDano = 0;
-              let danoKiller = 0;
-              const participants = ev.Participants || [];
-              participants.forEach(p => {
-                const dmg = p.DamageDone || 0;
-                totalDano += dmg;
-                if (p.Id === ev.Killer?.Id) danoKiller = dmg;
-              });
-
-              const percentDano = totalDano > 0 ? ((danoKiller / totalDano) * 100).toFixed(1) : "0.0";
-
-              const imagemBuffer = await gerarImagemEquipamentos({
-                killerName: ev.Killer.Name,
-                victimName: ev.Victim.Name,
-                killerGuild: ev.Killer.GuildName,
-                victimGuild: ev.Victim.GuildName,
-                valor,
-                time: new Date(ev.TimeStamp).toLocaleString("pt-BR"),
-                victimEquipment,
-                killerEquipment,
-                inventory: ev.Victim.Inventory || []
-              });
-
-              const embed = {
-                color: 0xe3b04b,
-                author: { name: `${ev.Killer.Name} killed ${ev.Victim.Name}` },
-                description: `**Dano do Killer:** ${percentDano}%\n**Valor estimado (média todas cidades):** ${valor.toLocaleString("pt-BR")} silver`,
-                fields: [
-                  { name: "Categoria", value: category, inline: true },
-                  { name: "Zona", value: ev.Location?.Zone || "Desconhecida", inline: true },
-                  { name: "Guild Killer", value: ev.Killer.GuildName || "Sem guild", inline: true },
-                  { name: "Guild Vítima", value: ev.Victim.GuildName || "Sem guild", inline: true }
-                ],
-                timestamp: ev.TimeStamp,
-                footer: { text: `Event ID: ${ev.EventId}` },
-                image: { url: "attachment://kill.png" }
-              };
-
-              await channel.send({
-                embeds: [embed],
-                files: [{ attachment: imagemBuffer, name: "kill.png" }]
-              });
-
-              // Delay entre envios para evitar rate limit
-              await new Promise(r => setTimeout(r, 2000));
-            } catch (err) {
-              console.error(`Erro ao processar kill ${ev.EventId}:`, err.message);
-            }
-          });
-        }
       } catch (err) {
         console.error(`Erro no killfeed (${cfg.guild_id}):`, err.message);
       }
 
-      await new Promise(r => setTimeout(r, 8000)); // Delay entre canais
+      await delay(8000); // Delay entre canais
     }
   }, 60000);
 }
