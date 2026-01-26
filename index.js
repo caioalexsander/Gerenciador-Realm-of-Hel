@@ -31,7 +31,7 @@ const killfeedService = require("./services/killfeedService.js");
 const { updatePrices } = require("./services/priceUpdater");
 
 // Registrar comandos
-const rest = new REST({ version: "10" }).setToken(config.token);
+const rest = new REST({ version: "10" }).setToken(token);
 
 (async () => {
   try {
