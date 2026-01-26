@@ -1,14 +1,15 @@
 const {
-    Client,
-    GatewayIntentBits,
-    REST,
-    Routes
+  Client,
+  GatewayIntentBits,
+  REST,
+  Routes
 } = require("discord.js");
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+
+const fs = require("fs");
+const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 // Importar comandos
@@ -19,42 +20,58 @@ const interactionHandler = require("./interactions/index.js");
 
 // Importar services
 const killfeedService = require("./services/killfeedService.js");
-const { updatePrices } = require('./services/priceUpdater');
+const { updatePrices } = require("./services/priceUpdater");
 
-// Registrar comandos globalmente
+// Registrar comandos
 const rest = new REST({ version: "10" }).setToken(config.token);
+
 (async () => {
-    try {
-        await rest.put(Routes.applicationCommands(config.clientId), { body: commands.map(c => c.toJSON()) });
-        console.log("Comandos registrados com sucesso!");
-    } catch (error) {
-        console.error("Erro ao registrar comandos:", error);
-    }
+  try {
+    await rest.put(
+      Routes.applicationCommands(config.clientId),
+      { body: commands.map(c => c.toJSON()) }
+    );
+    console.log("Comandos registrados com sucesso!");
+  } catch (error) {
+    console.error("Erro ao registrar comandos:", error);
+  }
 })();
 
-// Evento interactionCreate
+// Interactions
 client.on("interactionCreate", async (interaction) => {
+  try {
     await interactionHandler.handle(interaction);
+  } catch (err) {
+    console.error("❌ Erro em interactionCreate:", err);
+  }
 });
 
-// Evento ready
+// 🔥 CAPTURA DE ERROS GLOBAIS
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("🔥 Uncaught Exception:", error);
+});
+
+// clientReady
 client.once("clientReady", () => {
-    console.log("🤖 Bot online!");
+  console.log("🤖 Bot online!");
 
-    // Verificação periódica de membros em todos os guilds
-    client.guilds.cache.forEach(guild => {
-        const { verificarMembros } = require("./functions/verificarMembros.js");
-        setInterval(() => verificarMembros(guild), 60 * 60 * 1000);
-    });
+  client.guilds.cache.forEach(guild => {
+    const { verificarMembros } = require("./functions/verificarMembros.js");
+    setInterval(() => verificarMembros(guild), 60 * 60 * 1000);
+  });
 
-    // Atualização de preços a cada 6h (de Itens)
-    //const { updateItemPrices } = require("./services/craftingService.js");
-    //const CACHE_DURATION = 6 * 60 * 60 * 1000;
-    //setInterval(updateItemPrices, CACHE_DURATION);
-	setInterval(updatePrices, 12 * 60 * 60 * 1000); // 12 horas
+  setInterval(updatePrices, 12 * 60 * 60 * 1000);
+  
+  setInterval(() => {
+  console.log("💓 Bot vivo:", new Date().toISOString());
+}, 30000);
 
-    // Iniciar polling do killfeed
-    killfeedService.startPolling(client);
+
+  killfeedService.startPolling(client);
 });
 
 client.login(config.token);

@@ -38,28 +38,27 @@ if (price === 0) {
   } else {
     // Novo: Adiciona item na tabela itens se não existir (com try-catch!)
     try {
-      const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
-      if (!exists) {
-        db.prepare(`
-          INSERT OR IGNORE INTO itens 
-          (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
-        `).run(
-          itemId,
-          itemId || 'Desconhecido',  // nome seguro
-          itemId || 'Desconhecido',  // ptbr
-          itemId || 'Unknown',       // enus
-          'Item adicionado automaticamente', 
-          'Automatically added item',
-          JSON.stringify({}), 
-          JSON.stringify({}) 
-        );
-        console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
-      }
-    } catch (err) {
-      console.error(`Erro ao adicionar item ${itemId} na tabela itens:`, err.message);
-      // Continua sem crashar o bot
-    }
+	  const exists = db.prepare('SELECT 1 FROM itens WHERE item_id = ?').get(itemId);
+	  if (!exists) {
+		db.prepare(`
+		  INSERT OR IGNORE INTO itens 
+		  (item_id, nome, nome_ptbr, nome_enus, descricao_ptbr, descricao_enus, prices, recipe, crafting_focus, npc, nutricao, bonus_city, bonus_percent)
+		  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, '', 0.0, NULL, 0.0)
+		`).run(
+		  itemId,
+		  itemId || 'Desconhecido',          // nome
+		  itemId || 'Desconhecido',          // nome_ptbr
+		  itemId || 'Unknown',               // nome_enus
+		  'Item adicionado automaticamente de kill',  // descricao_ptbr
+		  'Automatically added from kill',   // descricao_enus
+		  JSON.stringify({}),                // prices
+		  JSON.stringify({})                 // recipe
+		);
+		console.log(`Novo item adicionado à tabela itens: ${itemId} (para atualização futura)`);
+	  }
+	} catch (err) {
+	  console.error(`Erro ao adicionar item ${itemId} na tabela itens:`, err.message);
+	}
   }
 }
 
