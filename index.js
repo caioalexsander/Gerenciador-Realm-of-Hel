@@ -7,6 +7,12 @@ const {
 
 const fs = require("fs");
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+// O token pode vir do config ou de variável de ambiente (mais seguro)
+const token = process.env.DISCORD_TOKEN || config.token;
+if (!token) {
+  console.error('ERRO: Token do Discord não encontrado! Verifique config.json ou variável de ambiente DISCORD_TOKEN.');
+  process.exit(1);
+}
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
@@ -67,10 +73,14 @@ client.once("clientReady", () => {
   setInterval(updatePrices, 12 * 60 * 60 * 1000);
   
   setInterval(() => {
-  console.log("💓 Bot vivo:", new Date().toISOString());
-}, 30000);
-
-
+	  console.log("💓 Bot vivo:", new Date().toISOString());
+	}, 30000);
+	
+	setInterval(() => {
+	  const used = process.memoryUsage();
+	  console.log(`Memória: RSS ${Math.round(used.rss / 1024 / 1024)}MB | Heap ${Math.round(used.heapUsed / 1024 / 1024)}MB`);
+	}, 60000);  // Loga memória a cada 1min
+	
   killfeedService.startPolling(client);
 });
 
