@@ -26,10 +26,10 @@ try {
 function loadToken() {
   let envVars = {};
 
-  // Prioridade 1: env.txt (arquivo que você adicionou)
-  const envPath = path.join(__dirname, "env.txt");
+  // Prioridade 1: .env (arquivo que você adicionou)
+  const envPath = path.join(__dirname, ".env");
   if (fs.existsSync(envPath)) {
-    console.log("env.txt encontrado e sendo carregado.");
+    console.log(".env encontrado e sendo carregado.");
     const envContent = fs.readFileSync(envPath, "utf8");
     envContent.split("\n").forEach((line) => {
       const trimmed = line.trim();
@@ -42,7 +42,7 @@ function loadToken() {
       }
     });
   } else {
-    console.warn("env.txt não encontrado.");
+    console.warn(".env não encontrado.");
   }
 
   // Prioridade 2: config.json
@@ -52,7 +52,7 @@ function loadToken() {
   if (!token.trim()) {
     console.error(
       "ERRO: Token do Discord não encontrado!\n" +
-      "- Verifique env.txt na raiz com DISCORD_TOKEN=SEU_TOKEN\n" +
+      "- Verifique .env na raiz com DISCORD_TOKEN=SEU_TOKEN\n" +
       "- Ou preencha \"token\" no config.json (apenas local)\n" +
       "Bot encerrando..."
     );
