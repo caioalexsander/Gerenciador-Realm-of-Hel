@@ -1,7 +1,7 @@
 const { db } = require("../database/db.js");
-const { calcularValorRealComDB } = require("../functions/calcularValor.js");
+const { calcularValorRealComDB, getAveragePriceAcrossCities } = require("../functions/calcularValor.js");
 const { gerarImagemEquipamentos } = require("./imageService.js");
-const { getAveragePriceAcrossCities } = require ("../functions/calcularValor.js"")
+const axios = require('axios');
 
 function startPolling(client) {
   setInterval(async () => {
