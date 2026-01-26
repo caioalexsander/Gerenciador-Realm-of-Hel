@@ -10,7 +10,6 @@ const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 
 // Token e Client ID vindos do ambiente
 const token = process.env.DISCORD_TOKEN;
-const clientId = process.env.CLIENT_ID;
 
 if (!token) {
   console.error("ERRO: DISCORD_TOKEN não definido!");
@@ -20,11 +19,6 @@ if (!token) {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
-
-if (!clientId) {
-  console.error("ERRO: CLIENT_ID não definido!");
-  process.exit(1);
-}
 
 // Importar comandos
 const commands = require("./commands/index.js");
